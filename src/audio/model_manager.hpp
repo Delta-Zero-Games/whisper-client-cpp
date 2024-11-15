@@ -2,7 +2,11 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QString>
+#include <QtCore/QMap>
+#include <QtCore/QDateTime>
 #include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QNetworkRequest>
 #include <memory>
 
 namespace whisper_client {

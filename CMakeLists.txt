@@ -64,6 +64,9 @@ add_subdirectory(external)
 enable_testing()
 add_subdirectory(test)
 
+# Link RtAudio with the main target
+target_link_libraries(whisper-client PRIVATE rtaudio)
+
 # Install targets
 install(TARGETS whisper-client
     RUNTIME DESTINATION bin

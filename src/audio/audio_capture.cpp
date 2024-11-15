@@ -1,6 +1,6 @@
 #include "audio/audio_capture.hpp"
 #include <QtCore/QDebug>
-#include <algorithm>
+#include <RtAudio.h>
 
 namespace whisper_client {
 namespace audio {
@@ -10,8 +10,8 @@ AudioCapture::AudioCapture()
     , currentDeviceId(0)
     , recording(false)
 {
-    // Try to find a default input device
     try {
+        // Try to find a default input device
         auto devices = listInputDevices();
         for (const auto& device : devices) {
             if (device.isDefault) {
@@ -33,34 +33,25 @@ AudioCapture::~AudioCapture() {
 
 std::vector<AudioDevice> AudioCapture::listInputDevices() {
     std::vector<AudioDevice> devices;
-    
     try {
-        // Get the default input device ID
         unsigned int defaultId = audio->getDefaultInputDevice();
-        
-        // Probe all devices
         RtAudio::DeviceInfo info;
         unsigned int deviceCount = audio->getDeviceCount();
-        
-        for (unsigned int i = 0; i < deviceCount; i++) {
+
+        for (unsigned int i = 0; i < deviceCount; ++i) {
             info = audio->getDeviceInfo(i);
-            
-            // Only add devices with input channels
             if (info.inputChannels > 0) {
                 AudioDevice device;
                 device.id = i;
                 device.name = QString::fromStdString(info.name);
                 device.channels = info.inputChannels;
                 device.isDefault = (i == defaultId);
-                
                 devices.push_back(device);
             }
         }
-    }
-    catch (const RtAudioError& e) {
+    } catch (RtAudioError& e) {
         qWarning() << "Error listing audio devices:" << e.getMessage().c_str();
     }
-    
     return devices;
 }
 

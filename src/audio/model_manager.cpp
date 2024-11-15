@@ -35,27 +35,27 @@ void ModelManager::initializeModelInfo() {
     modelInfos = {
         {"tiny", {
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
-            75_000_000,
+            75000000,
             "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1d21"
         }},
         {"base", {
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
-            142_000_000,
+            142000000,
             "137c40403d78fd54d454da0f9bd998f78703edb8f75bc929ad2a6cf1fa7d519b"
         }},
         {"small", {
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-            466_000_000,
+            466000000,
             "55356645c8b389a8277d7d82f084116a9d2b8c6d365c3b6ad3eb3a7dc8303c89"
         }},
         {"medium", {
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
-            1_500_000_000,
+            1500000000,
             "fd9727b6e1217c2f614f9b698455c4ffd82463b25a7d1822a6ba8e9c80824d52"
         }},
         {"large", {
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large.bin",
-            2_900_000_000,
+            2900000000,
             "0f4c8e34f21cf1a914c59d8b3ce882345ad349d86b9ecd5646f579659c661257"
         }}
     };

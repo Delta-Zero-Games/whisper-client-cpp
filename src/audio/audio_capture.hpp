@@ -7,6 +7,7 @@
 #include <memory>
 #include <functional>
 #include <QtCore/QString>
+#include <stdexcept>
 
 namespace whisper_client {
 namespace audio {

@@ -29,12 +29,20 @@ add_executable(whisper-client
     ${HEADERS}
 )
 
+# Group files for IDEs
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX "Source Files" FILES ${SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX "Header Files" FILES ${HEADERS})
+
 # Include directories
 target_include_directories(whisper-client
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${rtaudio_SOURCE_DIR}/include # Ensure RtAudio headers are included
 )
+
+# Find Qt6 components
+find_package(Qt6 COMPONENTS Core Widgets WebSockets Network REQUIRED)
 
 # Link libraries
 target_link_libraries(whisper-client
@@ -42,6 +50,7 @@ target_link_libraries(whisper-client
         Qt6::Core
         Qt6::Widgets
         Qt6::WebSockets
+        Qt6::Network
         whisper
         rtaudio
         nlohmann_json::nlohmann_json
@@ -53,3 +62,6 @@ if(MSVC)
 else()
     target_compile_options(whisper-client PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+# Define preprocessor macros if needed
+target_compile_definitions(whisper-client PRIVATE QT_NO_DEBUG_OUTPUT)

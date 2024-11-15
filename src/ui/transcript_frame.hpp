@@ -5,6 +5,7 @@
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QLabel>
 #include <QtCore/QString>
+#include <QtCore/QDateTime>
 #include <memory>
 
 namespace whisper_client {
