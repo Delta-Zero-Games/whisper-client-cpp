@@ -1,11 +1,13 @@
 #include "ui/settings_frame.hpp"
+#include "ui/main_window.hpp"
+#include "audio/audio_capture.hpp"
 #include <QtWidgets/QMessageBox>
-#include <QtWidgets/QGridLayout>
+#include <QtWidgets/QFileDialog>
 #include <QtCore/QFile>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonArray>
-#include <QtWidgets/QFileDialog>
+#include <QtCore/QDebug>
 
 namespace whisper_client {
 namespace ui {
@@ -39,19 +41,33 @@ void SettingsFrame::setupUi() {
 }
 
 void SettingsFrame::createDeviceSection() {
-    auto *deviceGroup = new QGroupBox("Microphone", this);
-    auto *deviceLayout = new QVBoxLayout(deviceGroup);
-    
+    auto* deviceGroup = new QGroupBox("Audio Device", this);
+    auto* deviceLayout = new QVBoxLayout(deviceGroup);
+
+    // Create device combo box
     deviceComboBox = new QComboBox(this);
+    deviceComboBox->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     deviceLayout->addWidget(deviceComboBox);
-    
+
+    // Add refresh button
+    auto* refreshButton = new QPushButton("Refresh Devices", this);
+    deviceLayout->addWidget(refreshButton);
+
     mainLayout->addWidget(deviceGroup);
+
+    // Connect signals
+    connect(deviceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SettingsFrame::onDeviceSelectionChanged);
+    connect(refreshButton, &QPushButton::clicked,
+            this, &SettingsFrame::updateDeviceList);
+
+    // Initial device list population
     updateDeviceList();
 }
 
 void SettingsFrame::createUserSection() {
-    auto *userGroup = new QGroupBox("User", this);
-    auto *userLayout = new QVBoxLayout(userGroup);
+    auto* userGroup = new QGroupBox("User", this);
+    auto* userLayout = new QVBoxLayout(userGroup);
     
     userComboBox = new QComboBox(this);
     userLayout->addWidget(userComboBox);
@@ -61,15 +77,15 @@ void SettingsFrame::createUserSection() {
 }
 
 void SettingsFrame::createWebSocketSection() {
-    auto *wsGroup = new QGroupBox("WebSocket", this);
-    auto *wsLayout = new QVBoxLayout(wsGroup);
+    auto* wsGroup = new QGroupBox("WebSocket", this);
+    auto* wsLayout = new QVBoxLayout(wsGroup);
     
     // Enable checkbox
     wsEnabledCheckBox = new QCheckBox("Enable WebSocket", this);
     wsLayout->addWidget(wsEnabledCheckBox);
     
     // IP and Port fields
-    auto *wsAddressLayout = new QHBoxLayout();
+    auto* wsAddressLayout = new QHBoxLayout();
     wsIpEdit = new QLineEdit(this);
     wsIpEdit->setPlaceholderText("IP Address");
     wsPortEdit = new QLineEdit(this);
@@ -84,8 +100,8 @@ void SettingsFrame::createWebSocketSection() {
 }
 
 void SettingsFrame::createHotkeySection() {
-    auto *hotkeyGroup = new QGroupBox("Push to Talk", this);
-    auto *hotkeyLayout = new QHBoxLayout(hotkeyGroup);
+    auto* hotkeyGroup = new QGroupBox("Push to Talk", this);
+    auto* hotkeyLayout = new QHBoxLayout(hotkeyGroup);
     
     hotkeyEdit = new QLineEdit(this);
     hotkeyEdit->setReadOnly(true);
@@ -100,26 +116,31 @@ void SettingsFrame::createHotkeySection() {
 }
 
 void SettingsFrame::createActionHotkeysSection() {
-    auto *actionGroup = new QGroupBox("Twitch Action Hotkeys", this);
-    auto *actionLayout = new QGridLayout(actionGroup);
+    auto* actionGroup = new QGroupBox("Twitch Action Hotkeys", this);
+    auto* actionLayout = new QGridLayout(actionGroup);
     
     const QStringList actions = {"TTS", "Follows", "Subs", "Gifts"};
     
     for (int i = 0; i < actions.size(); ++i) {
-        const QString &action = actions[i];
+        const QString &actionName = actions[i];
         
-        auto *edit = new QLineEdit(this);
+        auto* edit = new QLineEdit(this);
         edit->setReadOnly(true);
         
-        auto *button = new QPushButton("Set " + action + " Key", this);
+        auto* button = new QPushButton("Set " + actionName + " Key", this);
         
         actionLayout->addWidget(edit, i, 0);
         actionLayout->addWidget(button, i, 1);
         
-        actionHotkeys.push_back({action.toLower(), edit, button});
+        actionHotkeys.push_back({
+            actionName.toLower(),
+            edit,
+            button,
+            QString()
+        });
         
         connect(button, &QPushButton::clicked, this, 
-            [this, action](){ onSetActionHotkeyClicked(action.toLower()); });
+            [this, actionName](){ onSetActionHotkeyClicked(actionName.toLower()); });
     }
     
     mainLayout->addWidget(actionGroup);
@@ -130,16 +151,47 @@ void SettingsFrame::setupConnections() {
     connect(hotkeyButton, &QPushButton::clicked, this, &SettingsFrame::onSetHotkeyClicked);
     connect(recordingModeSwitch, &QCheckBox::toggled, this, &SettingsFrame::onRecordingModeChanged);
     connect(saveButton, &QPushButton::clicked, this, &SettingsFrame::saveSettings);
-    connect(deviceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &SettingsFrame::onDeviceSelectionChanged);
     connect(userComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &SettingsFrame::onUserSelectionChanged);
 }
 
 void SettingsFrame::updateDeviceList() {
+    // Clear old devices
     deviceComboBox->clear();
-    // TODO: Implement audio device listing using RtAudio
-    deviceComboBox->addItem("Default Device"); // Placeholder
+    audioDevices.clear();
+
+    try {
+        // Get devices from AudioCapture
+        whisper_client::audio::AudioCapture* audioCapture = 
+            qobject_cast<MainWindow*>(window())->getAudioCapture();
+        if (!audioCapture) return;
+
+        std::vector<whisper_client::audio::AudioDevice> devices = audioCapture->listInputDevices();
+        
+        // Add devices to combo box
+        for (const auto& device : devices) {
+            deviceComboBox->addItem(device.name);
+            audioDevices.push_back({device.id, device.name});
+            
+            // Mark default device
+            if (device.isDefault) {
+                deviceComboBox->setItemText(deviceComboBox->count() - 1,
+                                          device.name + " (Default)");
+            }
+        }
+
+        // Set to saved device if available
+        QString savedDevice = config.value("audio_device").toString();
+        if (!savedDevice.isEmpty()) {
+            int index = deviceComboBox->findText(savedDevice);
+            if (index >= 0) {
+                deviceComboBox->setCurrentIndex(index);
+            }
+        }
+    }
+    catch (const std::exception& e) {
+        qWarning() << "Error updating device list:" << e.what();
+    }
 }
 
 void SettingsFrame::loadUserNames() {
@@ -162,63 +214,66 @@ void SettingsFrame::loadSettings() {
     QFile file("config.json");
     if (file.open(QIODevice::ReadOnly)) {
         QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-        QJsonObject config = doc.object();
+        QJsonObject jsonConfig = doc.object();
+        
+        // Convert JSON config to QVariant map
+        for (auto it = jsonConfig.begin(); it != jsonConfig.end(); ++it) {
+            config[it.key()] = it.value().toVariant();
+        }
         
         // Load WebSocket settings
-        wsEnabledCheckBox->setChecked(config["ws_enabled"].toBool(true));
-        wsIpEdit->setText(config["ws_ip"].toString("localhost"));
-        wsPortEdit->setText(config["ws_port"].toString("3001"));
+        wsEnabledCheckBox->setChecked(config.value("ws_enabled", true).toBool());
+        wsIpEdit->setText(config.value("ws_ip", "localhost").toString());
+        wsPortEdit->setText(config.value("ws_port", "3001").toString());
         
         // Load push-to-talk settings
-        hotkeyEdit->setText(config["push_to_talk_key"].toString("f5"));
-        recordingModeSwitch->setChecked(config["recording_mode"].toString("push") == "toggle");
+        hotkeyEdit->setText(config.value("push_to_talk_key", "f5").toString());
+        recordingModeSwitch->setChecked(config.value("recording_mode", "push").toString() == "toggle");
         
         // Load action hotkeys
         for (auto &hotkey : actionHotkeys) {
             QString key = hotkey.name + "_hotkey";
-            hotkey.edit->setText(config[key].toString());
+            QString value = config.value(key).toString();
+            hotkey.key = value;
+            hotkey.edit->setText(value);
         }
         
         // Load preferred name if it exists
-        QString preferredName = config["preferred_name"].toString();
+        QString preferredName = config.value("preferred_name").toString();
         int nameIndex = userComboBox->findText(preferredName);
         if (nameIndex >= 0) {
             userComboBox->setCurrentIndex(nameIndex);
         }
-        
-        // Load audio device if it exists
-        QString preferredDevice = config["audio_device"].toString();
-        int deviceIndex = deviceComboBox->findText(preferredDevice);
-        if (deviceIndex >= 0) {
-            deviceComboBox->setCurrentIndex(deviceIndex);
-        }
+
+        // Update device list and selection
+        updateDeviceList();
     }
 }
 
 void SettingsFrame::saveSettings() {
-    QJsonObject config;
-    
-    // Save WebSocket settings
+    // Update config map
     config["ws_enabled"] = wsEnabledCheckBox->isChecked();
     config["ws_ip"] = wsIpEdit->text();
     config["ws_port"] = wsPortEdit->text();
-    
-    // Save push-to-talk settings
     config["push_to_talk_key"] = hotkeyEdit->text();
     config["recording_mode"] = recordingModeSwitch->isChecked() ? "toggle" : "push";
+    config["preferred_name"] = userComboBox->currentText();
+    config["audio_device"] = deviceComboBox->currentText();
     
     // Save action hotkeys
     for (const auto &hotkey : actionHotkeys) {
         config[hotkey.name + "_hotkey"] = hotkey.edit->text();
     }
     
-    // Save preferred name and device
-    config["preferred_name"] = userComboBox->currentText();
-    config["audio_device"] = deviceComboBox->currentText();
+    // Save to file
+    QJsonObject jsonConfig;
+    for (auto it = config.begin(); it != config.end(); ++it) {
+        jsonConfig[it.key()] = QJsonValue::fromVariant(it.value());
+    }
     
     QFile file("config.json");
     if (file.open(QIODevice::WriteOnly)) {
-        QJsonDocument doc(config);
+        QJsonDocument doc(jsonConfig);
         file.write(doc.toJson(QJsonDocument::Indented));
         QMessageBox::information(this, "Settings", "Settings saved successfully!");
     } else {
@@ -237,12 +292,11 @@ void SettingsFrame::onSetHotkeyClicked() {
         currentHotkeyTarget = "push_to_talk";
         hotkeyButton->setText("Press any key...");
         hotkeyEdit->clear();
-        // TODO: Implement key capture
     }
 }
 
 void SettingsFrame::onRecordingModeChanged(bool toggleMode) {
-    // TODO: Implement recording mode change
+    config["recording_mode"] = toggleMode ? "toggle" : "push";
 }
 
 void SettingsFrame::onSetActionHotkeyClicked(const QString& action) {
@@ -257,16 +311,27 @@ void SettingsFrame::onSetActionHotkeyClicked(const QString& action) {
                 break;
             }
         }
-        // TODO: Implement key capture
     }
 }
 
 void SettingsFrame::onDeviceSelectionChanged(int index) {
-    // TODO: Implement device change
+    if (index < 0 || index >= static_cast<int>(audioDevices.size())) return;
+
+    whisper_client::audio::AudioCapture* audioCapture = 
+        qobject_cast<MainWindow*>(window())->getAudioCapture();
+    if (!audioCapture) return;
+
+    const auto& device = audioDevices[index];
+    if (audioCapture->setDevice(device.id)) {
+        config["audio_device"] = device.name;
+        qDebug() << "Audio device set to:" << device.name;
+    }
 }
 
 void SettingsFrame::onUserSelectionChanged(int index) {
-    // TODO: Implement user change
+    if (index >= 0) {
+        config["preferred_name"] = userComboBox->currentText();
+    }
 }
 
 // Getters
@@ -296,6 +361,15 @@ QString SettingsFrame::getPushToTalkKey() const {
 
 bool SettingsFrame::isToggleModeEnabled() const {
     return recordingModeSwitch->isChecked();
+}
+
+QString SettingsFrame::getActionHotkey(const QString& action) const {
+    for (const auto& hotkey : actionHotkeys) {
+        if (hotkey.name == action) {
+            return hotkey.key;
+        }
+    }
+    return QString();
 }
 
 } // namespace ui

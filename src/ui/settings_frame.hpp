@@ -21,7 +21,7 @@ public:
     explicit SettingsFrame(QWidget *parent = nullptr);
     ~SettingsFrame();
 
-    // Public getters for settings
+    // Getters for settings
     QString getSelectedDevice() const;
     QString getSelectedUser() const;
     QString getWebSocketIP() const;
@@ -29,6 +29,7 @@ public:
     bool isWebSocketEnabled() const;
     QString getPushToTalkKey() const;
     bool isToggleModeEnabled() const;
+    QString getActionHotkey(const QString& action) const;
 
 public slots:
     void saveSettings();
@@ -58,6 +59,11 @@ private:
     
     // Device selection
     QComboBox *deviceComboBox;
+    struct AudioDeviceInfo {
+        unsigned int id;
+        QString name;
+    };
+    std::vector<AudioDeviceInfo> audioDevices;
     
     // User selection
     QComboBox *userComboBox;
@@ -77,6 +83,7 @@ private:
         QString name;
         QLineEdit *edit;
         QPushButton *button;
+        QString key;
     };
     std::vector<ActionHotkey> actionHotkeys;
     
@@ -85,6 +92,9 @@ private:
 
     bool isSettingHotkey = false;
     QString currentHotkeyTarget;
+
+    // Configuration storage
+    QMap<QString, QVariant> config;
 };
 
 } // namespace ui

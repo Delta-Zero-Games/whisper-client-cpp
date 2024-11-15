@@ -34,6 +34,9 @@ public:
     ~MainWindow();
 
     void start();
+    
+    // Getter for AudioCapture - needed by SettingsFrame
+    audio::AudioCapture* getAudioCapture() { return audioCapture.get(); }
 
 public slots:
     // Status updates
