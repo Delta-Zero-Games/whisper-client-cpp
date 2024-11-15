@@ -1,0 +1,29 @@
+# Build directories
+build/
+out/
+
+# IDE specific files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+
+# Compiled files
+*.obj
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+Makefile
+
+# OS specific files
+.DS_Store
+Thumbs.db
